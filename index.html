@@ -5,9 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tetris</title>
   <link rel="stylesheet" href="style.css" />
+  <script>
+    // Aplica el tema guardado antes de pintar (por defecto: oscuro)
+    try {
+      if (localStorage.getItem('theme') === 'light') {
+        document.documentElement.dataset.theme = 'light';
+      }
+    } catch (e) {}
+  </script>
 </head>
 <body>
   <div class="wrapper">
+    <button id="theme-toggle" class="theme-toggle" type="button" tabindex="-1"
+            role="switch" aria-checked="false" aria-label="Modo claro">
+      <span id="theme-icon" aria-hidden="true">☀</span>
+      <span id="theme-text">Claro</span>
+    </button>
     <h1 class="game-title">TETRIS</h1>
 
     <div class="game-container">

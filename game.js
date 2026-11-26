@@ -15,6 +15,31 @@ const COLORS = [
   '#ffb74d', // L - orange
 ];
 
+const THEMES = {
+  dark: {
+    colors: COLORS,
+    grid: '#22222e',
+    highlight: 'rgba(255,255,255,0.12)',
+    ghostAlpha: 0.2,
+  },
+  light: {
+    colors: [
+      null,
+      '#00acc1', // I
+      '#f9a825', // O
+      '#8e24aa', // T
+      '#43a047', // S
+      '#e53935', // Z
+      '#1e88e5', // J
+      '#fb8c00', // L
+    ],
+    grid: '#e1e4ee',
+    highlight: 'rgba(255,255,255,0.35)',
+    ghostAlpha: 0.3,
+  },
+};
+let theme = THEMES.dark;
+
 const PIECES = [
   null,
   [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], // I
@@ -158,18 +183,18 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const color = theme.colors[colorIndex];
   context.globalAlpha = alpha ?? 1;
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillStyle = theme.highlight;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = theme.grid;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -199,7 +224,7 @@ function draw() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       if (current.shape[r][c])
-        drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+        drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, theme.ghostAlpha);
 
   // current piece
   for (let r = 0; r < current.shape.length; r++)
@@ -300,5 +325,34 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+const themeToggle = document.getElementById('theme-toggle');
+const themeIcon = document.getElementById('theme-icon');
+const themeText = document.getElementById('theme-text');
+
+function applyTheme(name) {
+  const light = name === 'light';
+  theme = light ? THEMES.light : THEMES.dark;
+  if (light) document.documentElement.dataset.theme = 'light';
+  else delete document.documentElement.dataset.theme;
+  themeToggle.setAttribute('aria-checked', String(light));
+  themeToggle.setAttribute('aria-label', light ? 'Modo oscuro' : 'Modo claro');
+  themeIcon.textContent = light ? '🌙' : '☀';
+  themeText.textContent = light ? 'Oscuro' : 'Claro';
+  // Redibujar (necesario en pausa / game over, donde el bucle está detenido)
+  if (current) draw();
+  if (next) drawNext();
+}
+
+themeToggle.addEventListener('click', () => {
+  const name = theme === THEMES.light ? 'dark' : 'light';
+  try { localStorage.setItem('theme', name); } catch (e) {}
+  applyTheme(name);
+  themeToggle.blur(); // evita que Espacio/Enter reactiven el botón
+});
+
+let savedTheme = 'dark';
+try { savedTheme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; } catch (e) {}
+applyTheme(savedTheme);
 
 init();
