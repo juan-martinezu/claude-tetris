@@ -219,6 +219,9 @@ function draw() {
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
 
+  // en game over la pieza nueva colisiona: no pintarla encima del tablero
+  if (gameOver) return;
+
   // ghost
   const gy = ghostY();
   for (let r = 0; r < current.shape.length; r++)
@@ -266,6 +269,7 @@ function togglePause() {
 }
 
 function loop(ts) {
+  if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -275,6 +279,8 @@ function loop(ts) {
       current.y++;
     } else {
       lockPiece();
+      // endGame() no puede cancelar el frame en curso: cortar el bucle aquí
+      if (gameOver) { draw(); return; }
     }
   }
   draw();
