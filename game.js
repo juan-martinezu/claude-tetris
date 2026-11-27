@@ -4,6 +4,10 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
+const BOMB = 9;          // tipo de la pieza bomba
+const BOMB_EVERY = 5;    // líneas necesarias para obtener una bomba
+const BOMB_SCORE = 10;   // puntos por bloque destruido (× nivel)
+
 const COLORS = [
   null,
   '#4dd0e1', // I - cyan
@@ -14,6 +18,7 @@ const COLORS = [
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
   '#b0bec5', // N - tuerca (gris metálico)
+  '#ff1744', // Bomba
 ];
 
 const THEMES = {
@@ -34,6 +39,7 @@ const THEMES = {
       '#1e88e5', // J
       '#fb8c00', // L
       '#607d8b', // N
+      '#d50000', // Bomba
     ],
     grid: '#e1e4ee',
     highlight: 'rgba(255,255,255,0.35)',
@@ -52,6 +58,7 @@ const PIECES = [
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
   [[8,8,8],[8,0,8],[8,8,8]],                  // N - tuerca (hueco central)
+  [[9]],                                       // Bomba
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -63,19 +70,25 @@ const nextCtx = nextCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const linesEl = document.getElementById('lines');
 const levelEl = document.getElementById('level');
+const bombEl = document.getElementById('bomb-progress');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let bombProgress, bombPending;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * (PIECES.length - 1)) + 1;
+  // la bomba es el último tipo y no sale al azar
+  return makePiece(Math.floor(Math.random() * (PIECES.length - 2)) + 1);
+}
+
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -136,8 +149,28 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    bombProgress += cleared;
+    if (bombProgress >= BOMB_EVERY) {
+      bombProgress -= BOMB_EVERY;
+      bombPending = true;
+    }
     updateHUD();
   }
+}
+
+// Destruye el área de 3×3 centrada en (cx, cy)
+function explode(cx, cy) {
+  let destroyed = 0;
+  for (let r = Math.max(0, cy - 1); r <= Math.min(ROWS - 1, cy + 1); r++) {
+    for (let c = Math.max(0, cx - 1); c <= Math.min(COLS - 1, cx + 1); c++) {
+      if (board[r][c]) {
+        board[r][c] = 0;
+        destroyed++;
+      }
+    }
+  }
+  score += destroyed * BOMB_SCORE * level;
+  updateHUD();
 }
 
 function ghostY() {
@@ -164,14 +197,19 @@ function softDrop() {
 }
 
 function lockPiece() {
-  merge();
-  clearLines();
+  if (current.type === BOMB) {
+    explode(current.x, current.y); // la bomba no se fija en el tablero
+  } else {
+    merge();
+    clearLines();
+  }
   spawn();
 }
 
 function spawn() {
   current = next;
-  next = randomPiece();
+  next = bombPending ? makePiece(BOMB) : randomPiece();
+  bombPending = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -182,6 +220,7 @@ function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  bombEl.textContent = `${bombProgress}/${BOMB_EVERY}`;
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -193,7 +232,28 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   // highlight
   context.fillStyle = theme.highlight;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  if (colorIndex === BOMB) drawBombIcon(context, x, y, size);
   context.globalAlpha = 1;
+}
+
+function drawBombIcon(context, x, y, size) {
+  const cx = x * size + size * 0.45;
+  const cy = y * size + size * 0.58;
+  // cuerpo
+  context.fillStyle = '#212121';
+  context.beginPath();
+  context.arc(cx, cy, size * 0.27, 0, Math.PI * 2);
+  context.fill();
+  // mecha
+  context.strokeStyle = '#212121';
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(cx + size * 0.15, cy - size * 0.2);
+  context.quadraticCurveTo(cx + size * 0.2, cy - size * 0.4, cx + size * 0.33, cy - size * 0.36);
+  context.stroke();
+  // chispa
+  context.fillStyle = '#ffeb3b';
+  context.fillRect(cx + size * 0.3, cy - size * 0.42, 4, 4);
 }
 
 function drawGrid() {
@@ -295,6 +355,8 @@ function init() {
   score = 0;
   lines = 0;
   level = 1;
+  bombProgress = 0;
+  bombPending = false;
   paused = false;
   gameOver = false;
   dropInterval = 1000;
